@@ -50,6 +50,12 @@ class MainWindow(QMainWindow):
         self.btnBlocks.clicked.connect(self.show_blocks)
         self.btnBlocks.setEnabled(False)
         row2.addWidget(self.btnBlocks)
+
+        self.btnInspect = QPushButton("Свойства")
+        self.btnInspect.setEnabled(False)
+        self.btnInspect.clicked.connect(self.inspect_block)
+        row2.addWidget(self.btnInspect)
+
         row2.addStretch()
 
         layout.addLayout(row2)
@@ -77,6 +83,7 @@ class MainWindow(QMainWindow):
         self.edFile.setText(filename)
         self.spin.setMaximum(self.document.page_count)
         self.btnBlocks.setEnabled(True)
+        self.btnInspect.setEnabled(True)
 
         pages_with_text = sum(1 for p in self.document.pages if p.blocks)
         empty_pages = self.document.page_count - pages_with_text
@@ -103,6 +110,7 @@ class MainWindow(QMainWindow):
             return
 
         page = self.document.pages[self.spin.value() - 1]
+        self.current_page = page
 
         self.text.clear()
 
@@ -113,3 +121,34 @@ class MainWindow(QMainWindow):
             self.text.append("")
             self.text.append(block.text)
             self.text.append("")
+
+    def inspect_block(self):
+
+        if not hasattr(self, "current_page"):
+            self.info.append("")
+            self.info.append("Сначала нажмите 'Показать блоки'.")
+            return
+
+        self.info.append("")
+        self.info.append(f"Страница содержит {len(self.current_page.blocks)} блоков.")
+        if not self.current_page.blocks:
+            return
+
+        block = self.current_page.blocks[0]
+
+        self.info.append("")
+        self.info.append("Первый блок")
+        self.info.append(f"Номер : {block.number}")
+        self.info.append(f"BBox  : {block.bbox}")
+
+        if block.lines and block.lines[0].spans:
+
+            span = block.lines[0].spans[0]
+
+            self.info.append("")
+            self.info.append(f"Шрифт : {span.font}")
+            self.info.append(f"Размер: {span.size}")
+            self.info.append(f"Flags : {span.flags}")
+            self.info.append(f"Origin: {getattr(span, 'origin', 'НЕТ')}")
+            self.info.append(f"Asc   : {getattr(span, 'ascender', 'НЕТ')}")
+            self.info.append(f"Desc  : {getattr(span, 'descender', 'НЕТ')}")

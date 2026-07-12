@@ -49,13 +49,16 @@ class PdfEngine:
 
                     for span in line["spans"]:
                         text_line.spans.append(
-                            TextSpan(
+                             TextSpan(
                                 text=span.get("text", ""),
                                 font=span.get("font", ""),
                                 size=span.get("size", 0.0),
                                 color=span.get("color", 0),
                                 flags=span.get("flags", 0),
-                                bbox=tuple(span.get("bbox", (0,0,0,0))),
+                                bbox=tuple(span.get("bbox", (0, 0, 0, 0))),
+                                origin=tuple(span.get("origin", (0, 0))),
+                                ascender=span.get("ascender", 0.0),
+                                descender=span.get("descender", 0.0),
                             )
                         )
 

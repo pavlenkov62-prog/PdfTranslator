@@ -20,6 +20,12 @@ class TextSpan:
 
     bbox: tuple = (0, 0, 0, 0)
 
+    origin: tuple = (0, 0)
+
+    ascender: float = 0.0
+
+    descender: float = 0.0
+
 
 # ---------------------------------------------------------
 # Строка
