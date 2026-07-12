@@ -1,16 +1,12 @@
+from pathlib import Path
+
 from PySide6.QtWidgets import (
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-    QTextEdit,
-    QFileDialog,
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QLineEdit, QPushButton, QTextEdit,
+    QFileDialog, QSpinBox
 )
 
-from pdf_engine import PdfInfo
+from pdf_engine import PdfEngine
 
 
 class MainWindow(QMainWindow):
@@ -18,18 +14,18 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        self.engine = PdfEngine()
+        self.document = None
+
         self.setWindowTitle("PDF Translator")
-        self.resize(900, 700)
+        self.resize(1100, 800)
 
         central = QWidget()
         self.setCentralWidget(central)
 
         layout = QVBoxLayout(central)
 
-        # -------------------------------------------------
-
         row = QHBoxLayout()
-
         row.addWidget(QLabel("PDF"))
 
         self.edFile = QLineEdit()
@@ -42,68 +38,78 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(row)
 
-        # -------------------------------------------------
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("Страница"))
 
-        self.btnTranslate = QPushButton("Перевести")
-        self.btnTranslate.setEnabled(False)
-        layout.addWidget(self.btnTranslate)
+        self.spin = QSpinBox()
+        self.spin.setMinimum(1)
+        self.spin.setMaximum(1)
+        row2.addWidget(self.spin)
 
-        # -------------------------------------------------
+        self.btnBlocks = QPushButton("Показать блоки")
+        self.btnBlocks.clicked.connect(self.show_blocks)
+        self.btnBlocks.setEnabled(False)
+        row2.addWidget(self.btnBlocks)
+        row2.addStretch()
+
+        layout.addLayout(row2)
 
         layout.addWidget(QLabel("Информация"))
+        self.info = QTextEdit()
+        self.info.setMaximumHeight(180)
+        self.info.setReadOnly(True)
+        layout.addWidget(self.info)
 
-        self.log = QTextEdit()
-        self.log.setReadOnly(True)
-        layout.addWidget(self.log)
-
-    # -------------------------------------------------
+        layout.addWidget(QLabel("Блоки"))
+        self.text = QTextEdit()
+        self.text.setReadOnly(True)
+        layout.addWidget(self.text)
 
     def open_pdf(self):
-
         filename, _ = QFileDialog.getOpenFileName(
-            self,
-            "Выберите PDF",
-            "",
-            "PDF (*.pdf)"
+            self, "Выберите PDF", "", "PDF (*.pdf)"
         )
-
         if not filename:
             return
 
+        self.document = self.engine.load(filename)
+
         self.edFile.setText(filename)
-        self.btnTranslate.setEnabled(True)
+        self.spin.setMaximum(self.document.page_count)
+        self.btnBlocks.setEnabled(True)
 
-        pdf = PdfInfo(filename)
+        pages_with_text = sum(1 for p in self.document.pages if p.blocks)
+        empty_pages = self.document.page_count - pages_with_text
+        size_mb = self.document.file_size / 1024 / 1024
 
-        self.log.clear()
+        self.info.clear()
+        self.info.append("Документ")
+        self.info.append("")
+        self.info.append(Path(filename).name)
+        self.info.append("")
+        self.info.append(f"Размер              : {size_mb:.2f} МБ")
+        self.info.append(f"Страниц             : {self.document.page_count}")
+        self.info.append("")
+        self.info.append(f"Текстовых страниц   : {pages_with_text}")
+        self.info.append(f"Без текста          : {empty_pages}")
+        self.info.append("")
+        self.info.append(f"Оглавление          : {'Да' if self.document.has_toc else 'Нет'}")
+        self.info.append(f"Ссылки              : {'Да' if self.document.has_links else 'Нет'}")
 
-        self.log.append("Документ")
-        self.log.append("")
-        self.log.append(pdf.filename.name)
-        self.log.append("")
-        self.log.append(f"Размер              : {pdf.size_mb:.2f} МБ")
-        self.log.append(f"Страниц             : {pdf.page_count}")
-        self.log.append("")
-        self.log.append(f"Текстовых страниц   : {pdf.text_pages}")
-        self.log.append(f"Без текста          : {pdf.empty_pages}")
-        self.log.append("")
-        self.log.append(f"Оглавление          : {'Да' if pdf.has_toc else 'Нет'}")
-        self.log.append(f"Ссылки              : {'Да' if pdf.has_links else 'Нет'}")
+        self.text.clear()
 
-        if pdf.has_toc:
+    def show_blocks(self):
+        if self.document is None:
+            return
 
-            self.log.append("")
-            self.log.append("----------------------------------------")
-            self.log.append("")
-            self.log.append("Первые разделы")
-            self.log.append("")
+        page = self.document.pages[self.spin.value() - 1]
 
-            for level, title, page in pdf.first_toc():
+        self.text.clear()
 
-                indent = "    " * (level - 1)
-
-                self.log.append(
-                    f"{indent}{page}. {title}"
-                )
-
-        pdf.close()
+        for block in page.blocks:
+            self.text.append("=" * 70)
+            self.text.append(f"Блок {block.number}")
+            self.text.append(f"Координаты: {block.bbox}")
+            self.text.append("")
+            self.text.append(block.text)
+            self.text.append("")

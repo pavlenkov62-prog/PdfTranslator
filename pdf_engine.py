@@ -1,72 +1,71 @@
 from pathlib import Path
 import fitz
 
+from models import PdfDocument, PageInfo, TextBlock, TextLine, TextSpan
 
-class PdfInfo:
 
-    def __init__(self, filename: str):
+class PdfEngine:
 
-        self.filename = Path(filename)
+    def load(self, filename: str) -> PdfDocument:
+        src = fitz.open(filename)
 
-        self.doc = fitz.open(filename)
+        document = PdfDocument()
+        document.filename = str(Path(filename))
+        document.page_count = src.page_count
+        document.file_size = Path(filename).stat().st_size
+        document.toc = src.get_toc()
+        document.has_toc = len(document.toc) > 0
 
-        self.page_count = self.doc.page_count
+        for page_index in range(src.page_count):
+            page = src.load_page(page_index)
 
-        self.file_size = self.filename.stat().st_size
-
-        self.text_pages = 0
-        self.empty_pages = 0
-
-        self.has_links = False
-        self.has_toc = False
-
-        self.toc = []
-
-        self._analyze()
-
-    # -----------------------------------------------------
-
-    def _analyze(self):
-
-        for page in self.doc:
-
-            text = page.get_text("text").strip()
-
-            if text:
-                self.text_pages += 1
-            else:
-                self.empty_pages += 1
+            page_info = PageInfo(
+                number=page_index + 1,
+                width=page.rect.width,
+                height=page.rect.height,
+                rotation=page.rotation,
+            )
 
             if page.get_links():
-                self.has_links = True
+                document.has_links = True
 
-        #
-        # Оглавление
-        #
+            data = page.get_text("dict")
 
-        toc = self.doc.get_toc()
+            block_no = 0
 
-        if toc:
+            for block in data["blocks"]:
+                if "lines" not in block:
+                    continue
 
-            self.has_toc = True
+                text_block = TextBlock(
+                    page=page_index + 1,
+                    number=block_no,
+                    bbox=tuple(block["bbox"]),
+                )
+                block_no += 1
 
-            self.toc = toc
+                for line in block["lines"]:
+                    text_line = TextLine(bbox=tuple(line["bbox"]))
 
-    # -----------------------------------------------------
+                    for span in line["spans"]:
+                        text_line.spans.append(
+                            TextSpan(
+                                text=span.get("text", ""),
+                                font=span.get("font", ""),
+                                size=span.get("size", 0.0),
+                                color=span.get("color", 0),
+                                flags=span.get("flags", 0),
+                                bbox=tuple(span.get("bbox", (0,0,0,0))),
+                            )
+                        )
 
-    @property
-    def size_mb(self):
+                    if text_line.text.strip():
+                        text_block.lines.append(text_line)
 
-        return self.file_size / 1024 / 1024
+                if text_block.text.strip():
+                    page_info.blocks.append(text_block)
 
-    # -----------------------------------------------------
+            document.pages.append(page_info)
 
-    def first_toc(self, count=10):
-
-        return self.toc[:count]
-
-    # -----------------------------------------------------
-
-    def close(self):
-
-        self.doc.close()
+        src.close()
+        return document
