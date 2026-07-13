@@ -1,10 +1,14 @@
 from pathlib import Path
 
+from PySide6.QtCore import Qt
+
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QTextEdit,
-    QFileDialog, QSpinBox
+    QFileDialog, QSpinBox, QSplitter
 )
+
+from PySide6.QtGui import QPixmap
 
 from pdf_engine import PdfEngine
 
@@ -26,7 +30,10 @@ class MainWindow(QMainWindow):
 
         layout = QVBoxLayout(central)
 
+        # ---------- Верхняя панель ----------
+
         row = QHBoxLayout()
+
         row.addWidget(QLabel("PDF"))
 
         self.edFile = QLineEdit()
@@ -39,7 +46,10 @@ class MainWindow(QMainWindow):
 
         layout.addLayout(row)
 
+        # ---------- Панель управления ----------
+
         row2 = QHBoxLayout()
+
         row2.addWidget(QLabel("Страница"))
 
         self.spin = QSpinBox()
@@ -57,39 +67,72 @@ class MainWindow(QMainWindow):
         self.btnInspect.clicked.connect(self.inspect_block)
         row2.addWidget(self.btnInspect)
 
-        row2.addStretch()
+        row2.addSpacing(20)
 
-        layout.addLayout(row2)
-
-        layout.addWidget(QLabel("Информация"))
-        self.info = QTextEdit()
-        self.info.setMaximumHeight(180)
-        self.info.setReadOnly(True)
-        layout.addWidget(self.info)
-
-        row3 = QHBoxLayout()
-
-        row3.addWidget(QLabel("Блок"))
+        row2.addWidget(QLabel("Блок"))
 
         self.spinBlock = QSpinBox()
         self.spinBlock.setMinimum(1)
         self.spinBlock.setMaximum(1)
         self.spinBlock.setEnabled(False)
-        row3.addWidget(self.spinBlock)
+        row2.addWidget(self.spinBlock)
 
         self.btnBlockInfo = QPushButton("Свойства блока")
         self.btnBlockInfo.setEnabled(False)
         self.btnBlockInfo.clicked.connect(self.inspect_selected_block)
-        row3.addWidget(self.btnBlockInfo)
+        row2.addWidget(self.btnBlockInfo)
 
-        row3.addStretch()
+        row2.addStretch()
 
-        layout.addLayout(row3)
+        layout.addLayout(row2)
 
-        layout.addWidget(QLabel("Блоки"))
+                # ---------- Нижняя часть окна ----------
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        layout.addWidget(splitter)
+
+        # ---------- Левая панель ----------
+
+        left = QWidget()
+        leftLayout = QVBoxLayout(left)
+
+        leftLayout.addWidget(QLabel("Информация"))
+
+        self.info = QTextEdit()
+        self.info.setMaximumHeight(180)
+        self.info.setReadOnly(True)
+        leftLayout.addWidget(self.info)
+
+        leftLayout.addWidget(QLabel("Блоки"))
+
         self.text = QTextEdit()
         self.text.setReadOnly(True)
-        layout.addWidget(self.text)
+        leftLayout.addWidget(self.text)
+
+        splitter.addWidget(left)
+
+        # ---------- Правая панель ----------
+
+        right = QWidget()
+        rightLayout = QVBoxLayout(right)
+
+        rightLayout.addWidget(QLabel("Страница"))
+
+        self.pageView = QLabel()
+        self.pageView.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.pageView.setStyleSheet("border: 1px solid gray;")
+        rightLayout.addWidget(self.pageView)
+
+        splitter.addWidget(right)
+
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 2)
+        splitter.setHandleWidth(2)
+        splitter.setStyleSheet("""
+            QSplitter::handle {
+                background: #808080;
+            }
+        """)
 
     def open_pdf(self):
         filename, _ = QFileDialog.getOpenFileName(
@@ -131,6 +174,7 @@ class MainWindow(QMainWindow):
             return
 
         page = self.document.pages[self.spin.value() - 1]
+        self.show_page()
         self.current_page = page
         self.spinBlock.setMaximum(max(1, len(page.blocks)))
         self.spinBlock.setValue(1)
@@ -196,4 +240,46 @@ class MainWindow(QMainWindow):
         self.info.append(f"Блок №{self.spinBlock.value()}")
         self.info.append(f"BBox : {block.bbox}")
         self.info.append("")
-        self.info.append(block.text)
+        self.info.append(f"Строк в блоке : {len(block.lines)}")
+        self.info.append("")
+
+        for line_no, line in enumerate(block.lines, start=1):
+
+            self.info.append(f"===== Строка {line_no} =====")
+            self.info.append(f"BBox : {line.bbox}")
+            self.info.append(f"Span : {len(line.spans)}")
+            self.info.append("")
+
+            for span_no, span in enumerate(line.spans, start=1):
+
+                self.info.append(f"  ----- Span {span_no} -----")
+                self.info.append(f"  Font     : {span.font}")
+                self.info.append(f"  Size     : {span.size}")
+                self.info.append(f"  Flags    : {span.flags}")
+                self.info.append(f"  Color    : {getattr(span, 'color', 'НЕТ')}")
+                self.info.append(f"  Origin   : {getattr(span, 'origin', 'НЕТ')}")
+                self.info.append(f"  Asc      : {getattr(span, 'ascender', 'НЕТ')}")
+                self.info.append(f"  Desc     : {getattr(span, 'descender', 'НЕТ')}")
+                self.info.append(f"  BBox     : {getattr(span, 'bbox', 'НЕТ')}")
+                self.info.append(f"  Text     : {span.text}")
+                self.info.append("")
+
+    def show_page(self):
+
+        if self.document is None:
+            return
+
+        image = self.engine.render_page(
+            self.document.filename,
+            self.spin.value()
+        )
+
+        pixmap = QPixmap.fromImage(image)
+
+        self.pageView.setPixmap(
+            pixmap.scaled(
+                self.pageView.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+        )                

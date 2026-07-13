@@ -1,5 +1,6 @@
 from pathlib import Path
 import fitz
+from PySide6.QtGui import QImage
 
 from models import PdfDocument, PageInfo, TextBlock, TextLine, TextSpan
 
@@ -72,3 +73,43 @@ class PdfEngine:
 
         src.close()
         return document
+
+
+    def render_page(self, filename: str, page_number: int, zoom: float = 1.5):
+
+        src = fitz.open(filename)
+
+        try:
+            page = src.load_page(page_number - 1)
+
+            matrix = fitz.Matrix(zoom, zoom)
+
+            page_rect = page.rect
+
+            for block in page.get_text("dict")["blocks"]:
+
+                if "bbox" not in block:
+                    continue
+
+                rect = fitz.Rect(block["bbox"])
+
+                page.draw_rect(
+                    rect,
+                    color=(0, 0, 1),
+                    width=0.7
+                )
+                
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+
+            image = QImage(
+                pix.samples,
+                pix.width,
+                pix.height,
+                pix.stride,
+                QImage.Format.Format_RGB888
+            ).copy()
+
+            return image
+
+        finally:
+            src.close()        
