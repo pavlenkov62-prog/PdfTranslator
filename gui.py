@@ -79,10 +79,16 @@ class MainWindow(QMainWindow):
             return
 
         self.document = self.engine.load(filename)
+        self.edFile.setText(filename)
+        self.spin.setMaximum(self.document.page_count)
+        self.btnBlocks.setEnabled(True)
+        #self.spinBlock.setEnabled(True)
+        self.btnInspect.setEnabled(True)
 
         self.edFile.setText(filename)
         self.spin.setMaximum(self.document.page_count)
         self.btnBlocks.setEnabled(True)
+        #self.spinBlock.setEnabled(True)
         self.btnInspect.setEnabled(True)
 
         pages_with_text = sum(1 for p in self.document.pages if p.blocks)
@@ -111,6 +117,8 @@ class MainWindow(QMainWindow):
 
         page = self.document.pages[self.spin.value() - 1]
         self.current_page = page
+        #self.spinBlock.setMaximum(max(1, len(page.blocks)))
+        #self.spinBlock.setValue(1)
 
         self.text.clear()
 
