@@ -11,7 +11,7 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt
 
 from pdf_engine import PdfEngine
-
+from translator import Translator
 
 class MainWindow(QMainWindow):
 
@@ -19,6 +19,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.engine = PdfEngine()
+        self.translator = Translator()
         self.document = None
 
         self.setWindowTitle("PDF Translator")
@@ -79,6 +80,10 @@ class MainWindow(QMainWindow):
         row2.addWidget(self.spinBlock)
 
         self.btnBlockInfo = QPushButton("Свойства блока")
+        self.btnTranslate = QPushButton("Перевести блок")
+        self.btnTranslate.setEnabled(False)
+        self.btnTranslate.clicked.connect(self.translate_block)
+        row2.addWidget(self.btnTranslate)
         self.btnBlockInfo.setEnabled(False)
         self.btnBlockInfo.clicked.connect(self.inspect_selected_block)
         row2.addWidget(self.btnBlockInfo)
@@ -109,6 +114,11 @@ class MainWindow(QMainWindow):
         self.text = QTextEdit()
         self.text.setReadOnly(True)
         leftLayout.addWidget(self.text)
+        leftLayout.addWidget(QLabel("Перевод"))
+
+        self.translation = QTextEdit()
+        self.translation.setReadOnly(True)
+        leftLayout.addWidget(self.translation)
 
         splitter.addWidget(left)
 
@@ -156,6 +166,7 @@ class MainWindow(QMainWindow):
         self.btnBlocks.setEnabled(True)
         self.spinBlock.setEnabled(True)
         self.btnBlockInfo.setEnabled(True)
+        self.btnTranslate.setEnabled(True)
         self.btnInspect.setEnabled(True)
 
         pages_with_text = sum(1 for p in self.document.pages if p.blocks)
@@ -333,4 +344,36 @@ class MainWindow(QMainWindow):
         if block_no >= 0:
 
             self.spinBlock.setValue(block_no + 1)
-            self.inspect_selected_block()               
+            self.inspect_selected_block()   
+
+    def translate_block(self):
+
+        if not hasattr(self, "current_page"):
+            return
+
+        if not self.current_page.blocks:
+            return
+
+        index = self.spinBlock.value() - 1
+
+        if index < 0 or index >= len(self.current_page.blocks):
+            return
+
+        block = self.current_page.blocks[index]
+
+        self.translation.clear()
+        self.translation.append("Оригинал")
+        self.translation.append("")
+        self.translation.append(block.text)
+        self.translation.append("")
+        self.translation.append("-" * 60)
+        self.translation.append("")
+        self.translation.append("Перевод")
+        self.translation.append("")
+
+        try:
+            translated = self.translator.translate(block.text)
+            self.translation.append(translated)
+
+        except Exception as e:
+            self.translation.append(f"Ошибка перевода:\n{e}")                        
