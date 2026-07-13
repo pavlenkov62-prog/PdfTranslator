@@ -19,6 +19,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("PDF Translator")
         self.resize(1100, 800)
+        self.showMaximized()
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -66,6 +67,25 @@ class MainWindow(QMainWindow):
         self.info.setReadOnly(True)
         layout.addWidget(self.info)
 
+        row3 = QHBoxLayout()
+
+        row3.addWidget(QLabel("Блок"))
+
+        self.spinBlock = QSpinBox()
+        self.spinBlock.setMinimum(1)
+        self.spinBlock.setMaximum(1)
+        self.spinBlock.setEnabled(False)
+        row3.addWidget(self.spinBlock)
+
+        self.btnBlockInfo = QPushButton("Свойства блока")
+        self.btnBlockInfo.setEnabled(False)
+        self.btnBlockInfo.clicked.connect(self.inspect_selected_block)
+        row3.addWidget(self.btnBlockInfo)
+
+        row3.addStretch()
+
+        layout.addLayout(row3)
+
         layout.addWidget(QLabel("Блоки"))
         self.text = QTextEdit()
         self.text.setReadOnly(True)
@@ -82,13 +102,8 @@ class MainWindow(QMainWindow):
         self.edFile.setText(filename)
         self.spin.setMaximum(self.document.page_count)
         self.btnBlocks.setEnabled(True)
-        #self.spinBlock.setEnabled(True)
-        self.btnInspect.setEnabled(True)
-
-        self.edFile.setText(filename)
-        self.spin.setMaximum(self.document.page_count)
-        self.btnBlocks.setEnabled(True)
-        #self.spinBlock.setEnabled(True)
+        self.spinBlock.setEnabled(True)
+        self.btnBlockInfo.setEnabled(True)
         self.btnInspect.setEnabled(True)
 
         pages_with_text = sum(1 for p in self.document.pages if p.blocks)
@@ -117,8 +132,8 @@ class MainWindow(QMainWindow):
 
         page = self.document.pages[self.spin.value() - 1]
         self.current_page = page
-        #self.spinBlock.setMaximum(max(1, len(page.blocks)))
-        #self.spinBlock.setValue(1)
+        self.spinBlock.setMaximum(max(1, len(page.blocks)))
+        self.spinBlock.setValue(1)
 
         self.text.clear()
 
@@ -160,3 +175,25 @@ class MainWindow(QMainWindow):
             self.info.append(f"Origin: {getattr(span, 'origin', 'НЕТ')}")
             self.info.append(f"Asc   : {getattr(span, 'ascender', 'НЕТ')}")
             self.info.append(f"Desc  : {getattr(span, 'descender', 'НЕТ')}")
+
+    def inspect_selected_block(self):
+
+        if not hasattr(self, "current_page"):
+            return
+
+        if not self.current_page.blocks:
+            return
+
+        index = self.spinBlock.value() - 1
+
+        if index < 0 or index >= len(self.current_page.blocks):
+            return
+
+        block = self.current_page.blocks[index]
+
+        self.info.append("")
+        self.info.append(f"=== Свойства блока №{self.spinBlock.value()} ===")
+        self.info.append(f"Блок №{self.spinBlock.value()}")
+        self.info.append(f"BBox : {block.bbox}")
+        self.info.append("")
+        self.info.append(block.text)
