@@ -75,30 +75,42 @@ class PdfEngine:
         return document
 
 
-    def render_page(self, filename: str, page_number: int, zoom: float = 1.5):
+    def render_page(
+        self,
+        filename: str,
+        page_number: int,
+        selected_block: int = -1,
+        zoom: float = 1.5
+    ):
 
         src = fitz.open(filename)
 
         try:
             page = src.load_page(page_number - 1)
+            data = page.get_text("dict")
 
-            matrix = fitz.Matrix(zoom, zoom)
-
-            page_rect = page.rect
-
-            for block in page.get_text("dict")["blocks"]:
+            for block in data["blocks"]:
 
                 if "bbox" not in block:
                     continue
 
                 rect = fitz.Rect(block["bbox"])
 
+                if block.get("number", -1) == selected_block:
+                    color = (1, 0, 0)
+                    width = 2.0
+                else:
+                    color = (0, 0, 1)
+                    width = 0.8
+
                 page.draw_rect(
                     rect,
-                    color=(0, 0, 1),
-                    width=0.7
+                    color=color,
+                    width=width
                 )
-                
+
+            matrix = fitz.Matrix(zoom, zoom)
+
             pix = page.get_pixmap(matrix=matrix, alpha=False)
 
             image = QImage(
@@ -112,4 +124,27 @@ class PdfEngine:
             return image
 
         finally:
-            src.close()        
+            src.close()    
+
+        src = fitz.open(filename)
+
+        try:
+
+            page = src.load_page(page_number - 1)
+
+            data = page.get_text("dict")
+
+            for block in data["blocks"]:
+
+                if "bbox" not in block:
+                    continue
+
+                x0, y0, x1, y1 = block["bbox"]
+
+                if x0 <= x <= x1 and y0 <= y <= y1:
+                    return block.get("number", -1)
+
+            return -1
+
+        finally:
+            src.close()

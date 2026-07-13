@@ -1,14 +1,14 @@
 from pathlib import Path
 
-from PySide6.QtCore import Qt
-
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QTextEdit,
-    QFileDialog, QSpinBox, QSplitter
+    QFileDialog, QSpinBox, QSplitter, QSizePolicy
 )
 
 from PySide6.QtGui import QPixmap
+
+from PySide6.QtCore import Qt
 
 from pdf_engine import PdfEngine
 
@@ -75,6 +75,7 @@ class MainWindow(QMainWindow):
         self.spinBlock.setMinimum(1)
         self.spinBlock.setMaximum(1)
         self.spinBlock.setEnabled(False)
+        self.spinBlock.valueChanged.connect(self.show_page)
         row2.addWidget(self.spinBlock)
 
         self.btnBlockInfo = QPushButton("Свойства блока")
@@ -119,8 +120,16 @@ class MainWindow(QMainWindow):
         rightLayout.addWidget(QLabel("Страница"))
 
         self.pageView = QLabel()
-        self.pageView.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.pageView.setStyleSheet("border: 1px solid gray;")
+
+        self.pageView.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Ignored
+        )
+
+        self.pageView.setStyleSheet(
+            "border: 1px solid gray; background: white;"
+        )
+
         rightLayout.addWidget(self.pageView)
 
         splitter.addWidget(right)
@@ -233,6 +242,7 @@ class MainWindow(QMainWindow):
         if index < 0 or index >= len(self.current_page.blocks):
             return
 
+        self.info.clear()
         block = self.current_page.blocks[index]
 
         self.info.append("")
@@ -269,9 +279,15 @@ class MainWindow(QMainWindow):
         if self.document is None:
             return
 
+        selected = -1
+
+        if hasattr(self, "current_page"):
+            selected = self.spinBlock.value() - 1
+
         image = self.engine.render_page(
             self.document.filename,
-            self.spin.value()
+            self.spin.value(),
+            selected
         )
 
         pixmap = QPixmap.fromImage(image)
@@ -282,4 +298,39 @@ class MainWindow(QMainWindow):
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
-        )                
+        )
+
+    def page_clicked(self, x, y):
+
+        if self.document is None:
+            return
+
+        if not hasattr(self, "current_page"):
+            return
+
+        #
+        # Координаты сцены -> координаты PDF
+        #
+
+        zoom = 1.5
+
+        pdf_x = x / zoom
+        pdf_y = y / zoom
+
+        block_no = self.engine.find_block(
+            self.document.filename,
+            self.spin.value(),
+            pdf_x,
+            pdf_y
+        )
+
+        print(
+            f"Scene: ({x:.1f}, {y:.1f})   "
+            f"PDF: ({pdf_x:.1f}, {pdf_y:.1f})   "
+            f"Block: {block_no}"
+        )
+
+        if block_no >= 0:
+
+            self.spinBlock.setValue(block_no + 1)
+            self.inspect_selected_block()               
