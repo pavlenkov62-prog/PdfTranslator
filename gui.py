@@ -1,9 +1,21 @@
 from pathlib import Path
 
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton, QTextEdit,
-    QFileDialog, QSpinBox, QSplitter, QSizePolicy
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTextEdit,
+    QFileDialog,
+    QSpinBox,
+    QSplitter,
+    QSizePolicy,
+    QGraphicsView,
+    QGraphicsScene,
+    QGraphicsPixmapItem
 )
 
 from PySide6.QtGui import QPixmap
@@ -53,10 +65,21 @@ class MainWindow(QMainWindow):
 
         row2.addWidget(QLabel("Страница"))
 
+        self.btnPrev = QPushButton("◀")
+        self.btnPrev.setEnabled(False)
+        self.btnPrev.clicked.connect(self.prev_page)
+        row2.addWidget(self.btnPrev)
+
         self.spin = QSpinBox()
         self.spin.setMinimum(1)
         self.spin.setMaximum(1)
+        self.spin.valueChanged.connect(self.page_changed)
         row2.addWidget(self.spin)
+
+        self.btnNext = QPushButton("▶")
+        self.btnNext.setEnabled(False)
+        self.btnNext.clicked.connect(self.next_page)
+        row2.addWidget(self.btnNext)
 
         self.btnBlocks = QPushButton("Показать блоки")
         self.btnBlocks.clicked.connect(self.show_blocks)
@@ -94,8 +117,8 @@ class MainWindow(QMainWindow):
 
                 # ---------- Нижняя часть окна ----------
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        layout.addWidget(splitter)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        layout.addWidget(self.splitter)
 
         # ---------- Левая панель ----------
 
@@ -120,7 +143,7 @@ class MainWindow(QMainWindow):
         self.translation.setReadOnly(True)
         leftLayout.addWidget(self.translation)
 
-        splitter.addWidget(left)
+        self.splitter.addWidget(left)
 
         # ---------- Правая панель ----------
 
@@ -129,25 +152,39 @@ class MainWindow(QMainWindow):
 
         rightLayout.addWidget(QLabel("Страница"))
 
-        self.pageView = QLabel()
+        self.pageView = QGraphicsView()
 
-        self.pageView.setSizePolicy(
-            QSizePolicy.Policy.Ignored,
-            QSizePolicy.Policy.Ignored
+        self.scene = QGraphicsScene(self)
+
+        self.pageView.setScene(self.scene)
+
+        self.pagePixmap = QGraphicsPixmapItem()
+
+        self.scene.addItem(self.pagePixmap)
+
+        self.pageView.setStyleSheet("""
+            QGraphicsView {
+                border: 1px solid gray;
+                background: white;
+            }
+        """)
+
+        self.pageView.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
 
-        self.pageView.setStyleSheet(
-            "border: 1px solid gray; background: white;"
+        self.pageView.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
 
         rightLayout.addWidget(self.pageView)
 
-        splitter.addWidget(right)
+        self.splitter.addWidget(right)
 
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 2)
-        splitter.setHandleWidth(2)
-        splitter.setStyleSheet("""
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 2)
+        self.splitter.setHandleWidth(2)
+        self.splitter.setStyleSheet("""
             QSplitter::handle {
                 background: #808080;
             }
@@ -163,7 +200,11 @@ class MainWindow(QMainWindow):
         self.document = self.engine.load(filename)
         self.edFile.setText(filename)
         self.spin.setMaximum(self.document.page_count)
+        self.spin.setValue(1)
+        self.show_blocks()
         self.btnBlocks.setEnabled(True)
+        self.btnPrev.setEnabled(True)
+        self.btnNext.setEnabled(True)
         self.spinBlock.setEnabled(True)
         self.btnBlockInfo.setEnabled(True)
         self.btnTranslate.setEnabled(True)
@@ -186,8 +227,6 @@ class MainWindow(QMainWindow):
         self.info.append("")
         self.info.append(f"Оглавление          : {'Да' if self.document.has_toc else 'Нет'}")
         self.info.append(f"Ссылки              : {'Да' if self.document.has_links else 'Нет'}")
-
-        self.text.clear()
 
     def show_blocks(self):
         if self.document is None:
@@ -300,15 +339,22 @@ class MainWindow(QMainWindow):
             self.spin.value(),
             selected
         )
+        page = self.document.pages[self.spin.value() - 1]
+
+        if page.width > page.height:
+            self.splitter.setSizes([300, 1300])
+        else:
+           self.splitter.setSizes([450, 1050])
 
         pixmap = QPixmap.fromImage(image)
 
-        self.pageView.setPixmap(
-            pixmap.scaled(
-                self.pageView.size(),
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
+        self.pagePixmap.setPixmap(pixmap)
+
+        self.scene.setSceneRect(pixmap.rect())
+
+        self.pageView.fitInView(
+            self.scene.sceneRect(),
+            Qt.AspectRatioMode.KeepAspectRatio
         )
 
     def page_clicked(self, x, y):
@@ -377,3 +423,24 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             self.translation.append(f"Ошибка перевода:\n{e}")                        
+    def prev_page(self):
+
+        if self.spin.value() > 1:
+            self.spin.setValue(self.spin.value() - 1)
+
+
+    def next_page(self):
+
+        if self.document is None:
+            return
+
+        if self.spin.value() < self.document.page_count:
+            self.spin.setValue(self.spin.value() + 1)
+
+
+    def page_changed(self):
+
+        if self.document is None:
+            return
+
+        self.show_blocks()
