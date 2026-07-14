@@ -68,6 +68,14 @@ class TextBlock:
 
         return "\n".join(line.text for line in self.lines)
 
+# ---------------------------------------------------------
+# Изображение
+# ---------------------------------------------------------
+
+@dataclass
+class ImageBlock:
+
+    bbox: tuple = (0, 0, 0, 0)
 
 # ---------------------------------------------------------
 # Страница
@@ -85,6 +93,7 @@ class PageInfo:
     rotation: int = 0
 
     blocks: list[TextBlock] = field(default_factory=list)
+    images: list[ImageBlock] = field(default_factory=list)
 
 
 # ---------------------------------------------------------

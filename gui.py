@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem
 )
 
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPixmap, QPainter, QPen, QColor
 
 from PySide6.QtCore import Qt
 
@@ -345,6 +345,62 @@ class MainWindow(QMainWindow):
             self.splitter.setSizes([300, 1300])
         else:
            self.splitter.setSizes([450, 1050])
+        painter = QPainter(image)
+
+        pen = QPen(QColor(0, 0, 255))
+        pen.setWidth(2)
+
+        painter.setPen(pen)
+
+        page = self.document.pages[self.spin.value() - 1]
+
+        scale = 1.5
+
+        for block in page.blocks:
+
+            x0, y0, x1, y1 = block.bbox
+
+            painter.drawRect(
+                int(x0 * scale),
+                int(y0 * scale),
+                int((x1 - x0) * scale),
+                int((y1 - y0) * scale)
+            )
+        pen = QPen(QColor(0, 180, 0))
+        pen.setWidth(2)
+
+        painter.setPen(pen)
+
+        for img in page.images:
+
+            x0, y0, x1, y1 = img.bbox
+
+            painter.drawRect(
+                int(x0 * scale),
+                int(y0 * scale),
+                int((x1 - x0) * scale),
+                int((y1 - y0) * scale)
+            )
+
+        if self.spinBlock.value() > 0:
+
+            block = page.blocks[self.spinBlock.value() - 1]
+
+            pen = QPen(QColor(255, 0, 0))
+            pen.setWidth(3)
+
+            painter.setPen(pen)
+
+            x0, y0, x1, y1 = block.bbox
+
+            painter.drawRect(
+                int(x0 * scale),
+                int(y0 * scale),
+                int((x1 - x0) * scale),
+                int((y1 - y0) * scale)
+            )
+
+        painter.end()
 
         pixmap = QPixmap.fromImage(image)
 

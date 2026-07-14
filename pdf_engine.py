@@ -2,7 +2,14 @@ from pathlib import Path
 import fitz
 from PySide6.QtGui import QImage
 
-from models import PdfDocument, PageInfo, TextBlock, TextLine, TextSpan
+from models import (
+    PdfDocument,
+    PageInfo,
+    TextBlock,
+    TextLine,
+    TextSpan,
+    ImageBlock
+)
 
 
 class PdfEngine:
@@ -35,6 +42,14 @@ class PdfEngine:
             block_no = 0
 
             for block in data["blocks"]:
+                if block.get("type") == 1:
+                    page_info.images.append(
+                        ImageBlock(
+                            bbox=tuple(block["bbox"])
+                        )
+                    )
+                    continue
+                    
                 if "lines" not in block:
                     continue
 
@@ -88,26 +103,6 @@ class PdfEngine:
         try:
             page = src.load_page(page_number - 1)
             data = page.get_text("dict")
-
-            for block in data["blocks"]:
-
-                if "bbox" not in block:
-                    continue
-
-                rect = fitz.Rect(block["bbox"])
-
-                if block.get("number", -1) == selected_block:
-                    color = (1, 0, 0)
-                    width = 2.0
-                else:
-                    color = (0, 0, 1)
-                    width = 0.8
-
-                page.draw_rect(
-                    rect,
-                    color=color,
-                    width=width
-                )
 
             matrix = fitz.Matrix(zoom, zoom)
 
