@@ -60,6 +60,7 @@ class TextBlock:
     lines: list[TextLine] = field(default_factory=list)
 
     translated_text: str = ""
+    current_bbox: tuple = None
 
     need_translate: bool = True
 
@@ -67,7 +68,11 @@ class TextBlock:
     def text(self):
 
         return "\n".join(line.text for line in self.lines)
+    def __post_init__(self):
 
+        if self.current_bbox is None:
+            self.current_bbox = self.bbox
+            
 # ---------------------------------------------------------
 # Изображение
 # ---------------------------------------------------------

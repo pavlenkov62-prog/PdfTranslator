@@ -18,7 +18,13 @@ from PySide6.QtWidgets import (
     QGraphicsPixmapItem
 )
 
-from PySide6.QtGui import QPixmap, QPainter, QPen, QColor
+from PySide6.QtGui import (
+    QPixmap,
+    QPainter,
+    QPen,
+    QColor,
+    QFontMetricsF
+)
 
 from PySide6.QtCore import Qt
 
@@ -202,7 +208,6 @@ class MainWindow(QMainWindow):
         self.spin.setMaximum(self.document.page_count)
         self.spin.setValue(1)
         self.show_blocks()
-        self.btnBlocks.setEnabled(True)
         self.btnPrev.setEnabled(True)
         self.btnNext.setEnabled(True)
         self.spinBlock.setEnabled(True)
@@ -399,7 +404,7 @@ class MainWindow(QMainWindow):
             if block.translated_text == "":
                 continue
 
-            x0, y0, x1, y1 = block.bbox
+            x0, y0, x1, y1 = block.current_bbox
 
             painter.fillRect(
                 int(x0 * scale),
@@ -429,19 +434,59 @@ class MainWindow(QMainWindow):
                 size = max(6, size * 0.8)
 
                 font.setPointSizeF(size)
-
                 painter.setFont(font)
 
-            x0, y0, x1, y1 = block.bbox
+            x0, y0, x1, y1 = block.current_bbox
+
+            #
+            # Авторасширение SingleLine
+            #
+            if len(block.lines) == 1:
+
+                metrics = QFontMetricsF(font)
+
+                needed = metrics.horizontalAdvance(
+                    block.translated_text
+                )
+                original = metrics.horizontalAdvance(
+                    block.text
+                )
+
+                current = x1 - x0
+
+                if original > 1:
+
+                    scale_factor = current / original
+
+                    needed *= scale_factor
+
+                current = x1 - x0
+
+                if needed + 8 > current:
+
+                    block.current_bbox = (
+                        x0,
+                        y0,
+                        x0 + needed * 0.78 + 4,
+                        y1
+                    )
+
+                    x0, y0, x1, y1 = block.current_bbox
+
+            flags = (
+                Qt.AlignmentFlag.AlignLeft
+                | Qt.AlignmentFlag.AlignTop
+            )
+
+            if len(block.lines) > 1:
+                flags |= Qt.TextFlag.TextWordWrap
 
             painter.drawText(
                 int(x0 * scale),
                 int(y0 * scale),
                 int((x1 - x0) * scale),
                 int((y1 - y0) * scale),
-                Qt.AlignmentFlag.AlignLeft
-                | Qt.AlignmentFlag.AlignTop
-                | Qt.TextFlag.TextWordWrap,
+                flags,
                 block.translated_text
             )
 
@@ -459,7 +504,7 @@ class MainWindow(QMainWindow):
             pen.setWidth(2)
             painter.setPen(pen)
 
-            x0, y0, x1, y1 = block.bbox
+            x0, y0, x1, y1 = block.current_bbox
 
             painter.drawRect(
                 int(x0 * scale),
@@ -501,7 +546,7 @@ class MainWindow(QMainWindow):
 
             painter.setPen(pen)
 
-            x0, y0, x1, y1 = block.bbox
+            x0, y0, x1, y1 = block.current_bbox
 
             painter.drawRect(
                 int(x0 * scale),
