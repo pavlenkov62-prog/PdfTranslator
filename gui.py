@@ -102,14 +102,21 @@ class MainWindow(QMainWindow):
         self.spinBlock.valueChanged.connect(self.show_page)
         row2.addWidget(self.spinBlock)
 
-        self.btnBlockInfo = QPushButton("Свойства блока")
         self.btnTranslate = QPushButton("Перевести блок")
         self.btnTranslate.setEnabled(False)
         self.btnTranslate.clicked.connect(self.translate_block)
         row2.addWidget(self.btnTranslate)
-        self.btnBlockInfo.setEnabled(False)
-        self.btnBlockInfo.clicked.connect(self.inspect_selected_block)
-        row2.addWidget(self.btnBlockInfo)
+
+        self.btnUndo = QPushButton("Undo")
+        self.btnUndo.setEnabled(False)
+        self.btnUndo.clicked.connect(self.undo_translation)
+        row2.addWidget(self.btnUndo)
+
+        self.btnBlockInfo = QPushButton("Свойства блока")
+        self.btnTranslatePage = QPushButton("Перевести страницу")
+        self.btnTranslatePage.setEnabled(False)
+        self.btnTranslatePage.clicked.connect(self.translate_page)
+        row2.addWidget(self.btnTranslatePage)
 
         row2.addStretch()
 
@@ -208,6 +215,8 @@ class MainWindow(QMainWindow):
         self.spinBlock.setEnabled(True)
         self.btnBlockInfo.setEnabled(True)
         self.btnTranslate.setEnabled(True)
+        self.btnTranslatePage.setEnabled(True)
+        self.btnUndo.setEnabled(True)
         self.btnInspect.setEnabled(True)
 
         pages_with_text = sum(1 for p in self.document.pages if p.blocks)
@@ -347,14 +356,73 @@ class MainWindow(QMainWindow):
            self.splitter.setSizes([450, 1050])
         painter = QPainter(image)
 
+        page = self.document.pages[self.spin.value() - 1]
+
+        scale = 1.5
+
+        #
+        # Закрашиваем английский текст
+        #
+
+        for block in page.blocks:
+
+            if block.translated_text == "":
+                continue
+
+            x0, y0, x1, y1 = block.bbox
+
+            painter.fillRect(
+                int(x0 * scale),
+                int(y0 * scale),
+                int((x1 - x0) * scale),
+                int((y1 - y0) * scale),
+                QColor(255, 255, 255)
+            )
+
+        #
+        # Рисуем русский текст
+        #
+
+        pen = QPen(QColor(0, 0, 0))
+        painter.setPen(pen)
+
+        font = painter.font()
+
+        for block in page.blocks:
+
+            if block.translated_text == "":
+                continue
+
+            if len(block.lines) > 0 and len(block.lines[0].spans) > 0:
+
+                size = block.lines[0].spans[0].size
+                size = max(6, size * 0.8)
+
+                font.setPointSizeF(size)
+
+                painter.setFont(font)
+
+            x0, y0, x1, y1 = block.bbox
+
+            painter.drawText(
+                int(x0 * scale),
+                int(y0 * scale),
+                int((x1 - x0) * scale),
+                int((y1 - y0) * scale),
+                Qt.AlignmentFlag.AlignLeft
+                | Qt.AlignmentFlag.AlignTop
+                | Qt.TextFlag.TextWordWrap,
+                block.translated_text
+            )
+
+        #
+        # Синие рамки текстовых блоков
+        #
+
         pen = QPen(QColor(0, 0, 255))
         pen.setWidth(2)
 
         painter.setPen(pen)
-
-        page = self.document.pages[self.spin.value() - 1]
-
-        scale = 1.5
 
         for block in page.blocks:
 
@@ -366,6 +434,11 @@ class MainWindow(QMainWindow):
                 int((x1 - x0) * scale),
                 int((y1 - y0) * scale)
             )
+
+        #
+        # Зеленые рамки изображений
+        #
+
         pen = QPen(QColor(0, 180, 0))
         pen.setWidth(2)
 
@@ -381,6 +454,10 @@ class MainWindow(QMainWindow):
                 int((x1 - x0) * scale),
                 int((y1 - y0) * scale)
             )
+
+        #
+        # Красная рамка выбранного блока
+        #
 
         if self.spinBlock.value() > 0:
 
@@ -500,3 +577,39 @@ class MainWindow(QMainWindow):
             return
 
         self.show_blocks()
+
+    def translate_page(self):
+
+        page = self.document.pages[self.spin.value() - 1]
+
+        for block in page.blocks:
+
+            text = block.text.strip()
+
+            if text == "":
+                continue
+
+            # Только числа
+            if text.replace(".", "").replace(",", "").isdigit():
+                continue
+
+            # Один символ
+            if len(text) == 1:
+                continue
+
+            # Нет ни одной буквы
+            if not any(ch.isalpha() for ch in text):
+                continue
+
+            block.translated_text = self.translator.translate(text)
+
+        self.show_page()
+
+    def undo_translation(self):
+
+        page = self.document.pages[self.spin.value() - 1]
+
+        for block in page.blocks:
+            block.translated_text = ""
+
+        self.show_page()
