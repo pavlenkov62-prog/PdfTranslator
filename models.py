@@ -10,6 +10,8 @@ class TextSpan:
 
     text: str = ""
 
+    translated_text: str = ""
+
     font: str = ""
 
     size: float = 0.0
@@ -20,11 +22,17 @@ class TextSpan:
 
     bbox: tuple = (0, 0, 0, 0)
 
+    current_bbox: tuple = None
+
     origin: tuple = (0, 0)
 
     ascender: float = 0.0
 
     descender: float = 0.0
+    def __post_init__(self):
+
+        if self.current_bbox is None:
+            self.current_bbox = self.bbox
 
 
 # ---------------------------------------------------------

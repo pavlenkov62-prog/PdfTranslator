@@ -305,6 +305,38 @@ class MainWindow(QMainWindow):
             self.info.append(f"Asc   : {getattr(span, 'ascender', 'НЕТ')}")
             self.info.append(f"Desc  : {getattr(span, 'descender', 'НЕТ')}")
 
+    def is_single_line(self, block):
+
+        if not block.lines:
+            return False
+
+        first = None
+        min_y = None
+        max_y = None
+
+        for line in block.lines:
+
+            if not line.spans:
+                continue
+
+            span = line.spans[0]
+
+            if first is None:
+                first = span
+                min_y = span.origin[1]
+                max_y = span.origin[1]
+            else:
+                if span.origin[1] < min_y:
+                    min_y = span.origin[1]
+
+                if span.origin[1] > max_y:
+                    max_y = span.origin[1]
+
+        if first is None:
+            return False
+
+        return (max_y - min_y) < first.size
+
     def inspect_selected_block(self):
 
         if self.document is None:
@@ -325,7 +357,7 @@ class MainWindow(QMainWindow):
 
         self.text.clear()
 
-        if len(block.lines) == 1:
+        if self.is_single_line(block):
             block_type = "SingleLine"
         else:
             block_type = "Paragraph"
@@ -346,6 +378,24 @@ class MainWindow(QMainWindow):
         span_count = sum(len(line.spans) for line in block.lines)
 
         self.text.append(f"Span: {span_count}")
+        self.text.append("")
+
+        span_no = 1
+
+        for line in block.lines:
+
+            for span in line.spans:
+
+                x0, y0, x1, y1 = span.current_bbox
+
+                self.text.append(
+                    f"S{span_no}: "
+                    f"({x0:.2f}, {y0:.2f}, {x1:.2f}, {y1:.2f})"
+                )
+
+                self.text.append(f"    '{span.text}'")
+
+                span_no += 1
 
         if block.lines and block.lines[0].spans:
 
@@ -441,7 +491,7 @@ class MainWindow(QMainWindow):
             #
             # Авторасширение SingleLine
             #
-            if len(block.lines) == 1:
+            if self.is_single_line(block):
 
                 metrics = QFontMetricsF(font)
 
@@ -478,17 +528,27 @@ class MainWindow(QMainWindow):
                 | Qt.AlignmentFlag.AlignTop
             )
 
-            if len(block.lines) > 1:
+            if not self.is_single_line(block):
                 flags |= Qt.TextFlag.TextWordWrap
 
-            painter.drawText(
-                int(x0 * scale),
-                int(y0 * scale),
-                int((x1 - x0) * scale),
-                int((y1 - y0) * scale),
-                flags,
-                block.translated_text
-            )
+            if self.is_single_line(block):
+
+                 painter.drawText(
+                    int(x0 * scale),
+                    int((y0 + size) * scale),
+                    block.translated_text
+                )
+
+            else:
+
+                painter.drawText(
+                    int(x0 * scale),
+                    int(y0 * scale),
+                    int((x1 - x0) * scale),
+                    int((y1 - y0) * scale),
+                    flags,
+                    block.translated_text
+                )
 
         #
         # Синие рамки текстовых блоков
@@ -496,10 +556,10 @@ class MainWindow(QMainWindow):
 
         for block in page.blocks:
 
-            if len(block.lines) == 1:
-                pen = QPen(QColor(0, 0, 255))      # SingleLine
+            if self.is_single_line(block):
+               pen = QPen(QColor(0, 0, 255))
             else:
-                pen = QPen(QColor(255, 140, 0))    # Paragraph
+               pen = QPen(QColor(255, 140, 0))
 
             pen.setWidth(2)
             painter.setPen(pen)
@@ -629,11 +689,40 @@ class MainWindow(QMainWindow):
         self.translation.append("")
 
         try:
-            translated = self.translator.translate(block.text)
-            self.translation.append(translated)
+
+            self.translate_one_block(block)
+
+            self.translation.append(block.translated_text)
+
+            self.show_page()
+
+            self.inspect_selected_block()
 
         except Exception as e:
-            self.translation.append(f"Ошибка перевода:\n{e}")                        
+
+            self.translation.append(f"Ошибка перевода:\n{e}")
+
+    def translate_one_block(self, block):
+
+        text = block.text.strip()
+
+        if text == "":
+            return
+
+        # Только числа
+        if text.replace(".", "").replace(",", "").isdigit():
+            return
+
+        # Один символ
+        if len(text) == 1:
+            return
+
+        # Нет ни одной буквы
+        if not any(ch.isalpha() for ch in text):
+            return
+
+        block.translated_text = self.translator.translate(text)
+
     def prev_page(self):
 
         if self.spin.value() > 1:
@@ -662,24 +751,7 @@ class MainWindow(QMainWindow):
 
         for block in page.blocks:
 
-            text = block.text.strip()
-
-            if text == "":
-                continue
-
-            # Только числа
-            if text.replace(".", "").replace(",", "").isdigit():
-                continue
-
-            # Один символ
-            if len(text) == 1:
-                continue
-
-            # Нет ни одной буквы
-            if not any(ch.isalpha() for ch in text):
-                continue
-
-            block.translated_text = self.translator.translate(text)
+            self.translate_one_block(block)
 
         self.show_page()
 
